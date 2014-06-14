@@ -1,11 +1,13 @@
+import datetime
 import getopt
+import random
 import sys
 import time
 
 from collections import deque
 from multiprocessing import Process
 from SimpleCV import Camera, VideoStream, Display, cv2
-
+from subprocess import call
 
 # Configuration
 HELP_MSG = """record.py [options]
@@ -25,8 +27,10 @@ HELP_MSG = """record.py [options]
 
 """
 BUFFER_NAME = 'buffer.avi'
+BUFFER_LEN = 100
 FRAME_WIDTH = 800
 FRAME_HEIGHT = 600
+DEFAULT_FPS = 25
 
 class Watcher(object):
 
@@ -37,31 +41,63 @@ class Watcher(object):
                  width=FRAME_WIDTH,
                  height=FRAME_HEIGHT,
                  fps=24,
-                 video_buffer_fname=BUFFER_NAME):
-        self.video_streamer = VideoStream(fps=fps, filename=BUFFER_NAME,
-                                          framefill=True)
+                 video_buffer_fname=BUFFER_NAME,
+                 buffer_len=BUFFER_LEN):
+        self.video_streamer = VideoStream(fps=DEFAULT_FPS, filename=BUFFER_NAME,
+                                          framefill=False)
         self.camera = Camera(camera_id,
                              prop_set={width: width, height: height})
         self.display = None
         if show_display:
             self.display = Display((width, height))
-        self.video_buffer_fname = video_buffer_fname
+        self.film_buffer_fname = video_buffer_fname
+        self.buffer = deque([], buffer_len)
+        self.movement_flag = False
+        self.fps = fps
+
+    def detect_movement(self):
+        """Process the current buffer and return True if movement is detected"""
+        return False if random.randint(0, 100) < 80 else True
 
     def start(self):
         while True:
+            self.fill_buffer()
+            if self.detect_movement():
+                """Dump buffer to a file."""
+                map(self.video_streamer.writeFrame, self.buffer)
+                self.movement_flag = True
+                print('Movement')
+            else:
+                if self.movement_flag:
+                    # Movement stoped. Save film.
+                    self.process_film()
+                self.buffer.clear()
+                self.movement_flag = False
+                print('No movement')
+
+    def fill_buffer(self):
+        while len(self.buffer) < self.buffer.maxlen:
             frame = self.camera.getImage()
-            self.video_streamer.writeFrame(frame)
+            self.buffer.append(frame)
             if self.display:
                 frame.save(self.display)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+        return
 
-    @staticmethod
-    def save_film_to_disk(self, buffer_name, output_fname):
+    def save_film_to_disk(self):
         """Use avconv to process the video buffer."""
+        now = datetime.datetime.now()
+        output_fname = '%s_watcher.avi' % now.isoformat()
         encoding_params = " -i {0} -c:v mpeg4 -b:v 700k -r 24 {1}".format(
-            self.video_buffer_fname, output_fname)
+            self.film_buffer_fname, output_fname)
+        self.film_buffer_fname = '%s_buffer.avi' % now.isoformat()
         call('avconv' + encoding_params, shell=True)
+        self.video_streamer = VideoStream(fps=self.fps,
+                                          filename=self.film_buffer_fname,
+                                          framefill=False)
+
+    def process_film(self):
+        process = Process(target=watcher.save_film_to_disk)
+        process.start()
 
 
 if __name__ == '__main__':
@@ -94,6 +130,3 @@ if __name__ == '__main__':
     watcher = Watcher(camera_id, output_fname, show_display=True, width=width,
                       height=height)
     watcher.start()  # Main loop. Stops when 'q' is pressed.
-    process = Process(target=watcher.save_film_to_disk,
-                      args=(watcher.video_buffer_fname, output_fname))
-    process.start()
