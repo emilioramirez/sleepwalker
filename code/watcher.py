@@ -1,9 +1,10 @@
+import os
+
 from collections import deque, namedtuple
 from config import (FRAME_WIDTH, FRAME_HEIGHT, EXTRA_TIME, VIDEO_DIR,
-                    VIDEO_PREFIX)
+                    VIDEO_PREFIX, DO_COMPRESS)
 from datetime import datetime, timedelta
 from multiprocessing import Process
-from os import path
 from SimpleCV import Image, Camera, VideoStream, Display
 from subprocess import call
 
@@ -19,7 +20,8 @@ class Watcher(object):
                  height=FRAME_HEIGHT,
                  extra_time=EXTRA_TIME,
                  video_directory=VIDEO_DIR,
-                 video_prefix=VIDEO_PREFIX):
+                 video_prefix=VIDEO_PREFIX,
+                 do_compress=DO_COMPRESS):
         self.camera = Camera(camera_id, prop_set={width: width, height: height})
         self.total_pixels = height * width
         self.detector = Detector()
@@ -27,7 +29,8 @@ class Watcher(object):
         if show_display:
             self.display = Display((width, height))
         self.extra_time_delta = timedelta(seconds=extra_time)
-        self.video_prefix = path.join(video_directory, video_prefix)
+        self.video_prefix = os.path.join(video_directory, video_prefix)
+        self.do_compress = do_compress
 
     def get_frame(self):
         """
@@ -36,7 +39,7 @@ class Watcher(object):
 
         """
         now = datetime.now()
-        image = self.camera.getImage().smooth().toGray()
+        image = self.camera.getImage().toGray()
         return VideoFrame(image=image, timestamp=now)
 
     def main_loop(self):
@@ -57,7 +60,11 @@ class Watcher(object):
                 video_buffer.append(frame)
             else:
                 if video_buffer:
-                    self.save_video(video_buffer)
+                    buffer_fname = self.save_video(video_buffer)
+                    if self.do_compress and buffer_fname:
+                        proc = Process(target=self.compress_video,
+                                       args=(buffer_fname,))
+                        proc.start()
                 video_buffer = []
 
             frame_pre = frame
@@ -66,20 +73,29 @@ class Watcher(object):
 
     def save_video(self, video_buffer):
         """Use avconv to process the video buffer."""
+        buffer_fname = None
         if not video_buffer:
             return None
-        timestamp = video_buffer[0].timestamp.isoformat()
-        timestamp = timestamp[:timestamp.rfind('.')]
-        buffer_fname = '%s_%s.avi' % (self.video_prefix, timestamp)
         start = video_buffer[0].timestamp
         end = video_buffer[-1].timestamp
         delta = (end - start).seconds
         if delta:
             fps = len(video_buffer) / delta
             print len(video_buffer), "frames in", delta, "seconds:", fps
+            timestamp = video_buffer[0].timestamp.isoformat()
+            timestamp = timestamp[:timestamp.rfind('.')]
+            buffer_fname = '%s%s.avi' % (self.video_prefix, timestamp)
             video_streamer = VideoStream(fps=fps,
                                          filename=buffer_fname,
                                          framefill=False)
             map(video_streamer.writeFrame, [frame.image for frame in video_buffer])
             print "Saved video:", buffer_fname
+        return buffer_fname
 
+
+    def compress_video(self, input_fname):
+        output_fname = input_fname + '.mp4'
+        params = '-i %s -c:a copy -c:v libx264 -crf 23 -s:v 640x480 %s' % (
+            input_fname, output_fname)
+        call('avconv ' + params, shell=True)
+        os.remove(input_fname)

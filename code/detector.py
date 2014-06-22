@@ -11,8 +11,11 @@ VideoFrame = namedtuple('VideoFrame', ('image', 'timestamp'))
 
 class Detector():
 
-    def __init__(self, noise_threshold=NOISE_THRESHOLD):
+    def __init__(self,
+                 noise_threshold=NOISE_THRESHOLD,
+                 change_threshold=CHANGE_THRESHOLD):
         self.noise_threshold = noise_threshold
+        self.change_threshold = change_threshold
 
 
     def frames_diff(self, frame_pre, frame, frame_post):
@@ -42,5 +45,5 @@ class Detector():
         changed_pixels = len(diff_matrix[filtered_indexes])
         width, height = diff_matrix.shape
         change_rate = (changed_pixels * 100.0) / (width * height)
-        return {'has_motion': change_rate > CHANGE_THRESHOLD,
+        return {'has_motion': change_rate > self.change_threshold,
                 'difference_image': Image(diff_matrix)}

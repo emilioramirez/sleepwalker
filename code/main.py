@@ -27,7 +27,6 @@ if __name__ == '__main__':
     camera_id = 0
     width = 640
     height = 480
-    output_fname = 'output_{0}.mp4'.format(time.ctime().replace(" ", "_"))
 
     try:
         opts, args = getopt.getopt(sys.argv,"hx:y:o:c:",["width=","height=", "output="])
@@ -50,5 +49,5 @@ if __name__ == '__main__':
             output_fname = arg
 
     # Finally let's start
-    watcher = Watcher(camera_id, show_display=True, width=width, height=height)
+    watcher = Watcher(camera_id, show_display=True, width=int(width), height=int(height))
     watcher.main_loop()  # Main loop. Stops when 'q' is pressed.
