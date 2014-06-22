@@ -1,37 +1,46 @@
+import numpy as np
+
+from collections import namedtuple
+from SimpleCV import Image, cv2
+
+from config import (NOISE_THRESHOLD, CHANGE_THRESHOLD)
+
+
+VideoFrame = namedtuple('VideoFrame', ('image', 'timestamp'))
 
 
 class Detector():
-    
-    THRESHOLD_MULTIPLIER = 2.0
-    NOISE_LEVEL = 2.0
 
-    def __init__(self, noise_level=NOISE_LEVEL, threshold_multiplier=THRESHOLD_MULTIPLIER):
-        self.threshold_multiplier = threshold_multiplier
-        self.noise_level = noise_level
-        self.last_diff = None
-        self.last_mean = None
+    def __init__(self, noise_threshold=NOISE_THRESHOLD):
+        self.noise_threshold = noise_threshold
 
-    def calculate_threshold(self):
-        return self.threshold
 
-    def calculate_diff(self, prev_img, next_img):
-        return next_img - prev_img
+    def frames_diff(self, frame_pre, frame, frame_post):
+        """Frames must be Numpy arrays."""
+        d1 = cv2.absdiff(frame_post, frame)
+        d2 = cv2.absdiff(frame, frame_pre)
+        return cv2.bitwise_and(d1, d2)
 
-    def calculate_matrix(self, img):
-        return img.getNumpy()
+    @staticmethod
+    def frame_to_2d_array(frame):
+        return frame.image.getNumpy()[:,:,0]
 
-    def calculate_mean(self, matrix):
-        return matrix.mean()
-
-    def has_motion(self, prev_img, next_img):
+    def detect_motion(self, frame_pre, frame, frame_post):
         """
-        Detect motion between two SimpleCV.Image
-        """
-        self.last_diff = self.calculate_diff(prev_img, next_img)
-        matrix = self.calculate_matrix(self.last_diff)
-        self.last_mean = self.calculate_mean(matrix)
+        Detect motion by counting the number of pixels that change in the given
+        frames. If a threshold is passed, return True.
 
-        if self.last_mean >= (self.threshold_multiplier * self.noise_level):
-            return True
-        else:
-            return False
+        TODO: Move to its own class.
+
+        """
+        frame_pre = self.frame_to_2d_array(frame_pre)
+        frame = self.frame_to_2d_array(frame)
+        frame_post = self.frame_to_2d_array(frame_post)
+
+        diff_matrix = self.frames_diff(frame_pre, frame, frame_post)
+        filtered_indexes = np.where(diff_matrix > self.noise_threshold)
+        changed_pixels = len(diff_matrix[filtered_indexes])
+        width, height = diff_matrix.shape
+        change_rate = (changed_pixels * 100.0) / (width * height)
+        return {'has_motion': change_rate > CHANGE_THRESHOLD,
+                'difference_image': Image(diff_matrix)}
