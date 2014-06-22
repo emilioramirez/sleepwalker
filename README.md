@@ -1,7 +1,8 @@
 Sleepwalker
 ============
 
-A library for facility the move detection for sleepwalkers, so we can fun with random behavior of sleepy people.
+A library for facility the move detection for sleepwalkers, so we can have fun
+with random behavior of sleepy people.
 
 
 Dependencies
@@ -19,17 +20,16 @@ Roadmap
 
 ### API
 
-  1. Capture a stream of images.
-  1. Detect movements.
-  1. Save a stream of images with movement detected.
-  1. Configuration.
+  1. Detect movements. [PROTOTYPE]
+  1. Save a stream of images with movement detected. [DONE]
+  1. Configuration.  [PROTOTYPE]
   1. Automatic Calibration of the camera-related parameters.
 
 ### Apps
-  
+
   - Sleepwalker: use your webcam to save a video every time you wake up at night.
   - Security: use a fixed webcam to store a video every time something moves within its sight.
- 
+
 Wishlist
 --------
 

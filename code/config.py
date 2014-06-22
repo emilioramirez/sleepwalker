@@ -1,5 +1,5 @@
-FRAME_WIDTH = 800
-FRAME_HEIGHT = 600
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
 EXTRA_TIME = 1  # seconds of extra video after motion stops.
 VIDEO_DIR = 'sleepwalker_data'
 VIDEO_PREFIX = 'buffer_'
